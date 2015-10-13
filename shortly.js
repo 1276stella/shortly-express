@@ -2,7 +2,7 @@ var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
 var bodyParser = require('body-parser');
-
+var session = require('express-session');
 
 var db = require('./app/config');
 var Users = require('./app/collections/users');
@@ -22,26 +22,99 @@ app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.static(__dirname + '/public'));
 
+// app.use(session({
+//   secret: 'keyboard cat',
+//   // resave: false,
+//   // saveUninitialize: true,
+//   cookies: { maxAge: 60000 }
+// }));
+
+// app.use(function(req, res, next) {
+//   var sess = req.session
+//   // console.log(req.session)
+//   console.log('first ', req.sessionID)
+// req.session.regenerate(function(err){
+//   console.log('callback ', req.sessionID)
+
+// });
+//   console.log('last ', req.sessionID)
+
+//   if (sess.views) {
+//     sess.views++
+//     res.setHeader('Content-Type', 'text/html')
+//     res.write('<p>views: ' + sess.views + '</p>')
+//     res.write('<p>expires in: ' + (sess.cookie.maxAge / 1000) + 's</p>')
+//     res.end()
+//   } else {
+//     sess.views = 1
+//     res.end('welcome to the session demo. refresh!')
+//   }
+// })
+
+
 
 app.get('/', 
 function(req, res) {
-  res.render('index');
+  if (!req.sessionID){
+    res.redirect(302, '/login');
+  } else {
+    res.render('index');
+  }
 });
 
 app.get('/create', 
 function(req, res) {
-  res.render('index');
+  if (!req.sessionID){
+    res.redirect(302, '/login');
+  } else {
+    res.render('index');
+  }
+
 });
+
+app.get('/login', 
+function(req, res) {
+  res.render('login');
+});
+
+app.get('/signup', 
+function(req, res) {
+  res.render('signup');
+});
+
+// app.get('/links', 
+// function(req, res) {
+//   Links.reset().fetch().then(function(links) {
+//     res.send(200, links.models);
+//   });
+// });
 
 app.get('/links', 
 function(req, res) {
-  Links.reset().fetch().then(function(links) {
-    res.send(200, links.models);
+  
+  if (!req.sessionID){
+    res.redirect(302, '/login');
+  } else {
+    Links.reset().fetch().then(function(links) {
+      res.send(200, links.models);
+    });
+  }
+
+});
+
+app.get('/users', 
+function(req, res) {
+  Users.reset().fetch().then(function(users) {
+    res.send(200, users.models);
   });
 });
 
+
 app.post('/links', 
 function(req, res) {
+
+
+
   var uri = req.body.url;
 
   if (!util.isValidUrl(uri)) {
@@ -77,6 +150,45 @@ function(req, res) {
 /************************************************************/
 // Write your authentication routes here
 /************************************************************/
+app.post('/signup', 
+function(req, res) {
+  // put username and pw to db
+  // redirect back to index
+  // create a session
+  var reqUsername = req.body.username;
+  var reqPassword = req.body.password;
+
+  new User({ username: reqUsername }).fetch().then(function(found) {
+    if (found) { // already exists, log in
+      res.send(200, found.attributes);
+    } else { // if not found, create a new User
+      var user = new User({
+        username: reqUsername,
+        password: reqPassword
+      });
+      user.save().then(function(newUser){
+        Users.add(newUser);
+        res.send(201);
+      });    
+
+      // validate the username
+    }
+  });  
+});
+
+app.post('/login', 
+function(req, res) {
+  // if their login is correct on our server database 
+  if(true){
+    // create a session 
+    app.use(session({secret: 'special secret thing from their req object'}));
+    console.log('ID: ', req.sessionID);
+    res.redirect(302, '/'); 
+  } else {
+  // if fails, display "you failed to log in"
+    res.redirect(302, '/login'); 
+  }
+});
 
 
 
