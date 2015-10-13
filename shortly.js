@@ -1,6 +1,10 @@
 var express = require('express');
 var util = require('./lib/utility');
 var partials = require('express-partials');
+var bcrypt = require('bcrypt-nodejs');
+
+// var cookieParser = require('cookie-parser');
+// do we need to npm cookie parser?
 var bodyParser = require('body-parser');
 var session = require('express-session');
 
@@ -12,6 +16,7 @@ var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 
 var app = express();
+var currentLoggedInSessions = {};
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -20,51 +25,32 @@ app.use(partials());
 app.use(bodyParser.json());
 // Parse forms (signup/login)
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// trying app.use(sessions) up here?
+app.use(session({resave: true, saveUninitialized: true, secret: 'SOMERANDOMSECRETHERE', cookie: { maxAge: 60000 }}))
+
 app.use(express.static(__dirname + '/public'));
-
-// app.use(session({
-//   secret: 'keyboard cat',
-//   // resave: false,
-//   // saveUninitialize: true,
-//   cookies: { maxAge: 60000 }
-// }));
-
-// app.use(function(req, res, next) {
-//   var sess = req.session
-//   // console.log(req.session)
-//   console.log('first ', req.sessionID)
-// req.session.regenerate(function(err){
-//   console.log('callback ', req.sessionID)
-
-// });
-//   console.log('last ', req.sessionID)
-
-//   if (sess.views) {
-//     sess.views++
-//     res.setHeader('Content-Type', 'text/html')
-//     res.write('<p>views: ' + sess.views + '</p>')
-//     res.write('<p>expires in: ' + (sess.cookie.maxAge / 1000) + 's</p>')
-//     res.end()
-//   } else {
-//     sess.views = 1
-//     res.end('welcome to the session demo. refresh!')
-//   }
-// })
 
 
 
 app.get('/', 
 function(req, res) {
-  if (!req.sessionID){
+  if (!(req.sessionID in currentLoggedInSessions)){
     res.redirect(302, '/login');
+    // console.log('sessions', Object.keys(currentLoggedInSessions));
+    // console.log('currentSession', req.sessionID);    
+    console.log('tried to load "/"" ');    
   } else {
     res.render('index');
+    // show the currentlyLoggedInSessions Obj
+    // show the actual sessionID of the user
   }
 });
 
 app.get('/create', 
 function(req, res) {
-  if (!req.sessionID){
+
+  if (!(req.sessionID in currentLoggedInSessions)){
     res.redirect(302, '/login');
   } else {
     res.render('index');
@@ -87,12 +73,13 @@ function(req, res) {
 //   Links.reset().fetch().then(function(links) {
 //     res.send(200, links.models);
 //   });
-// });
+// }); ///  
 
 app.get('/links', 
 function(req, res) {
+    console.log('tried to get all links from DB');
   
-  if (!req.sessionID){
+  if (!(req.sessionID in currentLoggedInSessions)){
     res.redirect(302, '/login');
   } else {
     Links.reset().fetch().then(function(links) {
@@ -153,8 +140,7 @@ function(req, res) {
 app.post('/signup', 
 function(req, res) {
   // put username and pw to db
-  // redirect back to index
-  // create a session
+  // redirect back login
   var reqUsername = req.body.username;
   var reqPassword = req.body.password;
 
@@ -168,7 +154,7 @@ function(req, res) {
       });
       user.save().then(function(newUser){
         Users.add(newUser);
-        res.send(201);
+        res.redirect(302, '/');
       });    
 
       // validate the username
@@ -179,15 +165,43 @@ function(req, res) {
 app.post('/login', 
 function(req, res) {
   // if their login is correct on our server database 
-  if(true){
-    // create a session 
-    app.use(session({secret: 'special secret thing from their req object'}));
-    console.log('ID: ', req.sessionID);
-    res.redirect(302, '/'); 
-  } else {
-  // if fails, display "you failed to log in"
-    res.redirect(302, '/login'); 
-  }
+
+  var reqUsername = req.body.username;
+  var reqPassword = req.body.password; // could be the wrong password, we need to hash it to in order to check against the database. Our database only contains the hashed password.
+    // var user = new User({
+    //     username: reqUsername,
+    //     password: reqPassword
+    //   });
+    // user.get('password') // hashed password
+    // // fetch 
+
+
+
+  new User({ username: reqUsername}).fetch().then(function(found) {
+    // console.log("before bcrypt", found);
+    if (found) { // already exists, log in
+      bcrypt.compare(req.body.password, found.attributes.password, function(err, result){
+       if (result) {
+        // if these match, then they have the right password?
+        console.log("success, user password matches")
+        console.log('Old ID: ', req.sessionID);
+        req.session.regenerate(function(err){
+          currentLoggedInSessions[req.sessionID] = new Date();
+          console.log('New ID: ', req.sessionID);
+          res.redirect(302, '/');
+        });
+        // res.redirect('/');
+      } else { 
+        console.log("fail, no password match");
+        res.redirect(302, '/login');
+      }
+      });
+    } else {
+      console.log("fail, no such user in database");
+      res.redirect(302, '/login');
+    }
+  });  
+
 });
 
 
@@ -199,6 +213,7 @@ function(req, res) {
 /************************************************************/
 
 app.get('/*', function(req, res) {
+  console.log('req.params[0]', req.params[0]);
   new Link({ code: req.params[0] }).fetch().then(function(link) {
     if (!link) {
       res.redirect('/');
