@@ -49,7 +49,6 @@ function(req, res) {
 
 app.get('/create', 
 function(req, res) {
-
   if (!(req.sessionID in currentLoggedInSessions)){
     res.redirect(302, '/login');
   } else {
@@ -68,17 +67,9 @@ function(req, res) {
   res.render('signup');
 });
 
-// app.get('/links', 
-// function(req, res) {
-//   Links.reset().fetch().then(function(links) {
-//     res.send(200, links.models);
-//   });
-// }); ///  
 
 app.get('/links', 
-function(req, res) {
-    console.log('tried to get all links from DB');
-  
+function(req, res) {  
   if (!(req.sessionID in currentLoggedInSessions)){
     res.redirect(302, '/login');
   } else {
@@ -94,6 +85,18 @@ function(req, res) {
   Users.reset().fetch().then(function(users) {
     res.send(200, users.models);
   });
+});
+
+
+app.get('/logout', 
+function(req, res) {
+  // remove their old sessionID from our global currentLoggedInSessions
+  // destory their session
+  // delete currentLoggedInSessions[req.sessionID]; 
+  // req.session.destory(function(err){
+    console.log('server recevied logout');
+    res.redirect(302, '/login')
+  // });
 });
 
 
@@ -178,7 +181,6 @@ function(req, res) {
 
 
   new User({ username: reqUsername}).fetch().then(function(found) {
-    // console.log("before bcrypt", found);
     if (found) { // already exists, log in
       bcrypt.compare(req.body.password, found.attributes.password, function(err, result){
        if (result) {
@@ -213,7 +215,6 @@ function(req, res) {
 /************************************************************/
 
 app.get('/*', function(req, res) {
-  console.log('req.params[0]', req.params[0]);
   new Link({ code: req.params[0] }).fetch().then(function(link) {
     if (!link) {
       res.redirect('/');
