@@ -92,11 +92,11 @@ app.get('/logout',
 function(req, res) {
   // remove their old sessionID from our global currentLoggedInSessions
   // destory their session
-  // delete currentLoggedInSessions[req.sessionID]; 
-  // req.session.destory(function(err){
+  delete currentLoggedInSessions[req.sessionID]; 
+  req.session.destory(function(err){
     console.log('server recevied logout');
     res.redirect(302, '/login')
-  // });
+  });
 });
 
 
@@ -150,17 +150,15 @@ function(req, res) {
   new User({ username: reqUsername }).fetch().then(function(found) {
     if (found) { // already exists, log in
       res.send(200, found.attributes);
-    } else { // if not found, create a new User
-      var user = new User({
-        username: reqUsername,
-        password: reqPassword
+    } else { // if not found, create a new User 
+      bcrypt.hash(reqPassword, null, null, function(err, hash) {
+        Users.create({
+          username: reqUsername,
+          password: hash
+        }).then(function(newUser){
+          res.redirect(302, '/');
+        });  
       });
-      user.save().then(function(newUser){
-        Users.add(newUser);
-        res.redirect(302, '/');
-      });    
-
-      // validate the username
     }
   });  
 });
@@ -170,15 +168,7 @@ function(req, res) {
   // if their login is correct on our server database 
 
   var reqUsername = req.body.username;
-  var reqPassword = req.body.password; // could be the wrong password, we need to hash it to in order to check against the database. Our database only contains the hashed password.
-    // var user = new User({
-    //     username: reqUsername,
-    //     password: reqPassword
-    //   });
-    // user.get('password') // hashed password
-    // // fetch 
-
-
+  var reqPassword = req.body.password; 
 
   new User({ username: reqUsername}).fetch().then(function(found) {
     if (found) { // already exists, log in
