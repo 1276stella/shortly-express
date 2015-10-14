@@ -16,7 +16,6 @@ var Link = require('./app/models/link');
 var Click = require('./app/models/click');
 
 var app = express();
-var currentLoggedInSessions = {};
 
 app.set('views', __dirname + '/views');
 app.set('view engine', 'ejs');
@@ -33,28 +32,12 @@ app.use(express.static(__dirname + '/public'));
 
 
 
-app.get('/', 
-function(req, res) {
-  if (!(req.sessionID in currentLoggedInSessions)){
-    res.redirect(302, '/login');
-    // console.log('sessions', Object.keys(currentLoggedInSessions));
-    // console.log('currentSession', req.sessionID);    
-    console.log('tried to load "/"" ');    
-  } else {
-    res.render('index');
-    // show the currentlyLoggedInSessions Obj
-    // show the actual sessionID of the user
-  }
+app.get('/', util.checkUser, function(req, res) {
+  res.render('index');
 });
 
-app.get('/create', 
-function(req, res) {
-  if (!(req.sessionID in currentLoggedInSessions)){
-    res.redirect(302, '/login');
-  } else {
-    res.render('index');
-  }
-
+app.get('/create', util.checkUser, function(req, res) {
+  res.render('index');
 });
 
 app.get('/login', 
@@ -68,20 +51,13 @@ function(req, res) {
 });
 
 
-app.get('/links', 
-function(req, res) {  
-  if (!(req.sessionID in currentLoggedInSessions)){
-    res.redirect(302, '/login');
-  } else {
-    Links.reset().fetch().then(function(links) {
-      res.send(200, links.models);
-    });
-  }
-
+app.get('/links', util.checkUser, function(req, res) {
+  Links.reset().fetch().then(function(links) {
+    res.send(200, links.models);
+  });
 });
 
-app.get('/users', 
-function(req, res) {
+app.get('/users', util.checkUser, function(req, res) {
   Users.reset().fetch().then(function(users) {
     res.send(200, users.models);
   });
@@ -90,10 +66,7 @@ function(req, res) {
 
 app.get('/logout', 
 function(req, res) {
-  // remove their old sessionID from our global currentLoggedInSessions
-  // destory their session
-  delete currentLoggedInSessions[req.sessionID]; 
-  req.session.destory(function(err){
+  req.session.destroy(function(err){
     console.log('server recevied logout');
     res.redirect(302, '/login')
   });
@@ -174,15 +147,7 @@ function(req, res) {
     if (found) { // already exists, log in
       bcrypt.compare(req.body.password, found.attributes.password, function(err, result){
        if (result) {
-        // if these match, then they have the right password?
-        console.log("success, user password matches")
-        console.log('Old ID: ', req.sessionID);
-        req.session.regenerate(function(err){
-          currentLoggedInSessions[req.sessionID] = new Date();
-          console.log('New ID: ', req.sessionID);
-          res.redirect(302, '/');
-        });
-        // res.redirect('/');
+        util.createSession(req, res, reqUsername);
       } else { 
         console.log("fail, no password match");
         res.redirect(302, '/login');
